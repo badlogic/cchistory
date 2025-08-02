@@ -286,15 +286,28 @@ async function processVersion(version: string, originalCwd: string) {
 			.map((s) => s.text)
 			.join("\n");
 
+		// Function to add extra # to markdown headers
+		const indentHeaders = (text: string): string => {
+			return text.split('\n').map(line => {
+				const match = line.match(/^(#+)(\s+)/);
+				if (match) {
+					return '#' + line;
+				}
+				return line;
+			}).join('\n');
+		};
+
 		// Extract and sort tools, filtering out mcp__ tools
 		const tools = (request.body.tools || [])
 			.filter((tool) => !tool.name.startsWith("mcp__"))
 			.sort((a, b) => a.name.localeCompare(b.name))
 			.map((tool) => {
 				const schemaStr = JSON.stringify(tool.input_schema, null, 2);
-				return `${tool.name}\n${tool.description}\n${schemaStr}`;
+				// Apply indentation twice to make headers in tool descriptions smaller
+				const indentedDescription = indentHeaders(indentHeaders(tool.description));
+				return `## ${tool.name}\n\n${indentedDescription}\n${schemaStr}`;
 			})
-			.join("\n\n");
+			.join("\n\n---\n\n");
 
 		// Get release date
 		const releaseDate = getVersionReleaseDate(version);
@@ -306,11 +319,11 @@ Release Date: ${releaseDate}
 
 # User Message
 
-${userMessage}
+${indentHeaders(userMessage)}
 
 # System Prompt
 
-${systemPrompt}
+${indentHeaders(systemPrompt)}
 
 # Tools
 
