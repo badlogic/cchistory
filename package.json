@@ -1,0 +1,44 @@
+{
+  "name": "@mariozechner/cchistory",
+  "version": "1.1.0",
+  "description": "Extract and compare prompts from different Claude Code versions",
+  "main": "dist/index.js",
+  "bin": {
+    "cchistory": "dist/prompts.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ],
+  "keywords": [
+    "claude",
+    "anthropic",
+    "prompts",
+    "history",
+    "analysis"
+  ],
+  "author": "Mario Zechner",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mariozechner/cchistory.git"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "chalk": "^5.4.1"
+  }
+}
