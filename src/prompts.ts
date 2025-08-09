@@ -162,7 +162,7 @@ async function processVersion(version: string, originalCwd: string) {
 		try {
 			const packageFiles = fs.readdirSync(packageDir);
 			packageFiles.forEach(file => console.error(chalk.gray(`  - ${file}`)));
-		} catch (e) {
+		} catch (_e) {
 			console.error(chalk.gray("  Could not list package directory"));
 		}
 		throw new Error(`CLI file not found at ${cliPath}`);
@@ -384,7 +384,7 @@ async function main() {
 	// Get package version
 	const packageJsonPath = path.join(__dirname, "..", "package.json");
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
-	
+
 	// Handle --version flag
 	if (args.includes("--version") || args.includes("-v")) {
 		console.log(packageJson.version);
