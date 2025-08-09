@@ -381,11 +381,26 @@ async function main() {
 	const version = args[0];
 	const fetchToLatest = args.includes("--latest");
 
+	// Get package version
+	const packageJsonPath = path.join(__dirname, "..", "package.json");
+	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+	
+	// Handle --version flag
+	if (args.includes("--version") || args.includes("-v")) {
+		console.log(packageJson.version);
+		process.exit(0);
+	}
+
+	// Show version at startup
+	console.log(chalk.cyan(`cchistory v${packageJson.version}`));
+	console.log();
+
 	if (!version || version.startsWith("--")) {
 		console.log(chalk.yellow("Usage: cchistory <version> [--latest]"));
 		console.log(chalk.gray("Examples:"));
 		console.log(chalk.gray("  cchistory 1.0.0                # Extract prompts from version 1.0.0"));
 		console.log(chalk.gray("  cchistory 1.0.0 --latest       # Extract prompts from 1.0.0 to latest"));
+		console.log(chalk.gray("  cchistory --version            # Show version"));
 		process.exit(1);
 	}
 
