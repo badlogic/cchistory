@@ -4,3 +4,6 @@ dist/
 .DS_Store
 tmp-claude/
 prompts-*.md
+package/
+*.tgz
+.claude-trace/
