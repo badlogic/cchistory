@@ -1,13 +1,13 @@
 {
 	"name": "@mariozechner/cchistory",
-	"version": "1.1.4",
+	"version": "1.1.5",
 	"description": "Extract and compare prompts from different Claude Code versions",
 	"main": "dist/index.js",
 	"bin": {
 		"cchistory": "dist/prompts.js"
 	},
 	"scripts": {
-		"build": "tsc",
+		"build": "tsc && chmod +x dist/prompts.js",
 		"dev": "tsc --watch --preserveWatchOutput",
 		"clean": "rm -rf dist",
 		"prepublishOnly": "npm run clean && npm run build",
