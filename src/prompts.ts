@@ -228,7 +228,7 @@ async function processVersion(version: string, originalCwd: string) {
 			// Use npx with -y flag to automatically confirm any prompts
 			// Use --no-open to prevent browser from opening
 			_cmdOutput = execSync(
-				`npx --node-options="--no-warnings" -y @mariozechner/claude-trace --claude-path ./package/cli.js --no-open --run-with -p "hey"`,
+				`npx --node-options="--no-warnings" -y @mariozechner/claude-trace --claude-path ./package/cli.js --no-open --run-with -p "${new Date().toISOString()} is the date. Write a haiku about it."`,
 				{
 					encoding: "utf-8",
 					stdio: ["pipe", "pipe", "pipe"],
