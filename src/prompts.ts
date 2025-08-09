@@ -63,8 +63,12 @@ function getLatestVersion(): string {
 			stdio: ["pipe", "pipe", "pipe"],
 		}).trim();
 		return output;
-	} catch (error) {
-		console.error(chalk.red("Failed to fetch latest version:"), error);
+	} catch (error: any) {
+		console.error(chalk.red("Failed to fetch latest version from npm:"));
+		console.error(chalk.gray("Command: npm view @anthropic-ai/claude-code version"));
+		if (error.stdout) console.error(chalk.gray("stdout:"), error.stdout);
+		if (error.stderr) console.error(chalk.gray("stderr:"), error.stderr);
+		console.error(chalk.gray("Error:"), error.message || error);
 		process.exit(1);
 	}
 }
@@ -84,8 +88,12 @@ function getAllVersionsBetween(startVersion: string, endVersion: string): string
 				return compareVersions(v, startVersion) >= 0 && compareVersions(v, endVersion) <= 0;
 			})
 			.sort(compareVersions);
-	} catch (error) {
-		console.error(chalk.red("Failed to fetch version list:"), error);
+	} catch (error: any) {
+		console.error(chalk.red("Failed to fetch version list from npm:"));
+		console.error(chalk.gray("Command: npm view @anthropic-ai/claude-code versions --json"));
+		if (error.stdout) console.error(chalk.gray("stdout:"), error.stdout);
+		if (error.stderr) console.error(chalk.gray("stderr:"), error.stderr);
+		console.error(chalk.gray("Error:"), error.message || error);
 		process.exit(1);
 	}
 }
@@ -129,8 +137,12 @@ async function processVersion(version: string, originalCwd: string) {
 			cwd: tmpDir,
 			stdio: ["pipe", "pipe", "pipe"],
 		});
-	} catch (error) {
-		console.error(chalk.red(`Failed to download version ${version}:`), error);
+	} catch (error: any) {
+		console.error(chalk.red(`Failed to download version ${version} from npm:`));
+		console.error(chalk.gray(`Command: npm pack @anthropic-ai/claude-code@${version}`));
+		if (error.stdout) console.error(chalk.gray("stdout:"), error.stdout);
+		if (error.stderr) console.error(chalk.gray("stderr:"), error.stderr);
+		console.error(chalk.gray("Error:"), error.message || error);
 		throw error;
 	}
 
@@ -144,8 +156,16 @@ async function processVersion(version: string, originalCwd: string) {
 
 	// Check if cli.js exists
 	if (!fs.existsSync(cliPath)) {
-		console.error(`Error: CLI file not found at ${cliPath}`);
-		process.exit(1);
+		console.error(chalk.red(`CLI file not found for version ${version}`));
+		console.error(chalk.gray("Expected path:"), cliPath);
+		console.error(chalk.gray("Package contents:"));
+		try {
+			const packageFiles = fs.readdirSync(packageDir);
+			packageFiles.forEach(file => console.error(chalk.gray(`  - ${file}`)));
+		} catch (e) {
+			console.error(chalk.gray("  Could not list package directory"));
+		}
+		throw new Error(`CLI file not found at ${cliPath}`);
 	}
 
 	// Read the CLI file
@@ -209,7 +229,9 @@ async function processVersion(version: string, originalCwd: string) {
 		const patchedFunction = `${functionDeclaration} /* Version check disabled by patch */ }`;
 		cliContent = cliContent.substring(0, functionIndex) + patchedFunction + cliContent.substring(closeBraceIndex + 1);
 	} else {
-		throw new Error("Could not find version warning text in CLI file");
+		console.error(chalk.yellow(`Warning: Could not find version check to patch in version ${version}`));
+		console.error(chalk.gray("This version might not have the version check, continuing anyway..."));
+		// Don't throw, just continue - older versions might not have this check
 	}
 
 	// Write the patched file
@@ -236,7 +258,17 @@ async function processVersion(version: string, originalCwd: string) {
 			);
 		} catch (error: any) {
 			console.error(chalk.red(`\nFailed to run claude-trace for version ${version}:`));
-			console.error(error.stdout || error.stderr || error.message);
+			console.error(chalk.gray("Command: npx --node-options=\"--no-warnings\" -y @mariozechner/claude-trace ..."));
+			if (error.stdout) {
+				console.error(chalk.gray("stdout:"));
+				console.error(error.stdout);
+			}
+			if (error.stderr) {
+				console.error(chalk.gray("stderr:"));
+				console.error(error.stderr);
+			}
+			console.error(chalk.gray("Error:"), error.message || error);
+			console.error(chalk.gray("Exit code:"), error.status || error.code || "unknown");
 			throw error;
 		}
 
@@ -371,7 +403,11 @@ async function main() {
 			try {
 				await processVersion(v, originalCwd);
 			} catch (error: any) {
-				console.error(chalk.red(`✗ ${v} failed: ${error.message}`));
+				console.error(chalk.red(`✗ ${v} failed:`));
+				console.error(chalk.gray("  Error:"), error.message || error);
+				if (error.stack && process.env.DEBUG) {
+					console.error(chalk.gray("  Stack:"), error.stack);
+				}
 				// Continue with next version
 			}
 		}
@@ -382,7 +418,15 @@ async function main() {
 	}
 }
 
-main().catch((error) => {
-	console.error(chalk.red("Error:"), error.message);
+main().catch((error: any) => {
+	console.error(chalk.red("Fatal error:"));
+	console.error(chalk.gray("Message:"), error.message || error);
+	if (error.stack && process.env.DEBUG) {
+		console.error(chalk.gray("Stack trace:"));
+		console.error(error.stack);
+	}
+	if (!process.env.DEBUG) {
+		console.error(chalk.gray("\nTip: Set DEBUG=1 to see full stack traces"));
+	}
 	process.exit(1);
 });
