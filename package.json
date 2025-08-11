@@ -11,7 +11,8 @@
 		"dev": "tsc --watch --preserveWatchOutput",
 		"clean": "rm -rf dist",
 		"prepublishOnly": "npm run clean && npm run build",
-		"check": "biome check . && tsc --noEmit"
+		"check": "biome check --write . && tsc --noEmit",
+		"prepare": "husky"
 	},
 	"files": [
 		"dist/**/*",
@@ -34,11 +35,14 @@
 		"node": ">=16.0.0"
 	},
 	"devDependencies": {
-		"@types/node": "^20.19.9",
-		"typescript": "^5.0.0"
+		"@biomejs/biome": "^2.1.4",
+		"@types/node": "^22.10.5",
+		"husky": "^9.1.7",
+		"tsx": "^4.20.3",
+		"typescript": "^5.9.2"
 	},
 	"types": "./dist/index.d.ts",
 	"dependencies": {
-		"chalk": "^5.4.1"
+		"chalk": "^5.5.0"
 	}
 }
