@@ -4,10 +4,10 @@
 	"description": "Extract and compare prompts from different Claude Code versions",
 	"main": "dist/index.js",
 	"bin": {
-		"cchistory": "dist/cchistory.js"
+		"cchistory": "dist/index.js"
 	},
 	"scripts": {
-		"build": "tsc && chmod +x dist/cchistory.js",
+		"build": "tsc && chmod +x dist/index.js",
 		"dev": "tsc --watch --preserveWatchOutput",
 		"clean": "rm -rf dist",
 		"prepublishOnly": "npm run clean && npm run build",
