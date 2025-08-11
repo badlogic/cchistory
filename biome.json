@@ -1,16 +1,9 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.1.1/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.1.4/schema.json",
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true,
-			"style": {
-				"noNonNullAssertion": "off",
-				"useConst": "error"
-			},
-			"correctness": {
-				"noUnusedVariables": "error"
-			}
+			"recommended": true
 		}
 	},
 	"formatter": {

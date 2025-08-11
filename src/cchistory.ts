@@ -6,6 +6,17 @@ import * as os from "node:os";
 import * as path from "node:path";
 import chalk from "chalk";
 
+interface CacheControl {
+	type: string;
+}
+
+interface InputSchema {
+	type?: string;
+	properties?: Record<string, unknown>;
+	required?: string[];
+	[key: string]: unknown;
+}
+
 interface RequestResponsePair {
 	request: {
 		timestamp: number;
@@ -19,23 +30,23 @@ interface RequestResponsePair {
 				content: Array<{
 					type: string;
 					text?: string;
-					cache_control?: any;
+					cache_control?: CacheControl;
 				}>;
 			}>;
 			temperature?: number;
 			system?: Array<{
 				type: string;
 				text: string;
-				cache_control?: any;
+				cache_control?: CacheControl;
 			}>;
 			tools?: Array<{
 				name: string;
 				description: string;
-				input_schema: any;
+				input_schema: InputSchema;
 			}>;
 		};
 	};
-	response: any;
+	response: Record<string, unknown>;
 }
 
 function parseVersion(version: string): { major: number; minor: number; patch: number } {
@@ -63,12 +74,13 @@ function getLatestVersion(): string {
 			stdio: ["pipe", "pipe", "pipe"],
 		}).trim();
 		return output;
-	} catch (error: any) {
+	} catch (error) {
 		console.error(chalk.red("Failed to fetch latest version from npm:"));
 		console.error(chalk.gray("Command: npm view @anthropic-ai/claude-code version"));
-		if (error.stdout) console.error(chalk.gray("stdout:"), error.stdout);
-		if (error.stderr) console.error(chalk.gray("stderr:"), error.stderr);
-		console.error(chalk.gray("Error:"), error.message || error);
+		const errorObj = error as { stdout?: string; stderr?: string; message?: string };
+		if (errorObj.stdout) console.error(chalk.gray("stdout:"), errorObj.stdout);
+		if (errorObj.stderr) console.error(chalk.gray("stderr:"), errorObj.stderr);
+		console.error(chalk.gray("Error:"), error instanceof Error ? error.message : String(error));
 		process.exit(1);
 	}
 }
@@ -88,12 +100,13 @@ function getAllVersionsBetween(startVersion: string, endVersion: string): string
 				return compareVersions(v, startVersion) >= 0 && compareVersions(v, endVersion) <= 0;
 			})
 			.sort(compareVersions);
-	} catch (error: any) {
+	} catch (error) {
 		console.error(chalk.red("Failed to fetch version list from npm:"));
 		console.error(chalk.gray("Command: npm view @anthropic-ai/claude-code versions --json"));
-		if (error.stdout) console.error(chalk.gray("stdout:"), error.stdout);
-		if (error.stderr) console.error(chalk.gray("stderr:"), error.stderr);
-		console.error(chalk.gray("Error:"), error.message || error);
+		const errorObj = error as { stdout?: string; stderr?: string; message?: string };
+		if (errorObj.stdout) console.error(chalk.gray("stdout:"), errorObj.stdout);
+		if (errorObj.stderr) console.error(chalk.gray("stderr:"), errorObj.stderr);
+		console.error(chalk.gray("Error:"), error instanceof Error ? error.message : String(error));
 		process.exit(1);
 	}
 }
@@ -137,12 +150,13 @@ async function processVersion(version: string, originalCwd: string) {
 			cwd: tmpDir,
 			stdio: ["pipe", "pipe", "pipe"],
 		});
-	} catch (error: any) {
+	} catch (error) {
 		console.error(chalk.red(`Failed to download version ${version} from npm:`));
 		console.error(chalk.gray(`Command: npm pack @anthropic-ai/claude-code@${version}`));
-		if (error.stdout) console.error(chalk.gray("stdout:"), error.stdout);
-		if (error.stderr) console.error(chalk.gray("stderr:"), error.stderr);
-		console.error(chalk.gray("Error:"), error.message || error);
+		const errorObj = error as { stdout?: string; stderr?: string; message?: string };
+		if (errorObj.stdout) console.error(chalk.gray("stdout:"), errorObj.stdout);
+		if (errorObj.stderr) console.error(chalk.gray("stderr:"), errorObj.stderr);
+		console.error(chalk.gray("Error:"), error instanceof Error ? error.message : String(error));
 		throw error;
 	}
 
@@ -161,7 +175,7 @@ async function processVersion(version: string, originalCwd: string) {
 		console.error(chalk.gray("Package contents:"));
 		try {
 			const packageFiles = fs.readdirSync(packageDir);
-			packageFiles.forEach(file => console.error(chalk.gray(`  - ${file}`)));
+			packageFiles.forEach((file) => console.error(chalk.gray(`  - ${file}`)));
 		} catch (_e) {
 			console.error(chalk.gray("  Could not list package directory"));
 		}
@@ -256,19 +270,26 @@ async function processVersion(version: string, originalCwd: string) {
 					stdio: ["pipe", "pipe", "pipe"],
 				},
 			);
-		} catch (error: any) {
+		} catch (error) {
 			console.error(chalk.red(`\nFailed to run claude-trace for version ${version}:`));
-			console.error(chalk.gray("Command: npx --node-options=\"--no-warnings\" -y @mariozechner/claude-trace ..."));
-			if (error.stdout) {
+			console.error(chalk.gray('Command: npx --node-options="--no-warnings" -y @mariozechner/claude-trace ...'));
+			const errorObj = error as {
+				stdout?: string;
+				stderr?: string;
+				status?: number;
+				code?: number;
+				message?: string;
+			};
+			if (errorObj.stdout) {
 				console.error(chalk.gray("stdout:"));
-				console.error(error.stdout);
+				console.error(errorObj.stdout);
 			}
-			if (error.stderr) {
+			if (errorObj.stderr) {
 				console.error(chalk.gray("stderr:"));
-				console.error(error.stderr);
+				console.error(errorObj.stderr);
 			}
-			console.error(chalk.gray("Error:"), error.message || error);
-			console.error(chalk.gray("Exit code:"), error.status || error.code || "unknown");
+			console.error(chalk.gray("Error:"), error instanceof Error ? error.message : String(error));
+			console.error(chalk.gray("Exit code:"), errorObj.status || errorObj.code || "unknown");
 			throw error;
 		}
 
@@ -320,13 +341,16 @@ async function processVersion(version: string, originalCwd: string) {
 
 		// Function to add extra # to markdown headers
 		const indentHeaders = (text: string): string => {
-			return text.split('\n').map(line => {
-				const match = line.match(/^(#+)(\s+)/);
-				if (match) {
-					return '#' + line;
-				}
-				return line;
-			}).join('\n');
+			return text
+				.split("\n")
+				.map((line) => {
+					const match = line.match(/^(#+)(\s+)/);
+					if (match) {
+						return `#${line}`;
+					}
+					return line;
+				})
+				.join("\n");
 		};
 
 		// Extract and sort tools, filtering out mcp__ tools
@@ -417,10 +441,10 @@ async function main() {
 		for (const v of versions) {
 			try {
 				await processVersion(v, originalCwd);
-			} catch (error: any) {
+			} catch (error) {
 				console.error(chalk.red(`✗ ${v} failed:`));
-				console.error(chalk.gray("  Error:"), error.message || error);
-				if (error.stack && process.env.DEBUG) {
+				console.error(chalk.gray("  Error:"), error instanceof Error ? error.message : String(error));
+				if (error instanceof Error && error.stack && process.env.DEBUG) {
 					console.error(chalk.gray("  Stack:"), error.stack);
 				}
 				// Continue with next version
@@ -433,10 +457,10 @@ async function main() {
 	}
 }
 
-main().catch((error: any) => {
+main().catch((error) => {
 	console.error(chalk.red("Fatal error:"));
-	console.error(chalk.gray("Message:"), error.message || error);
-	if (error.stack && process.env.DEBUG) {
+	console.error(chalk.gray("Message:"), error instanceof Error ? error.message : String(error));
+	if (error instanceof Error && error.stack && process.env.DEBUG) {
 		console.error(chalk.gray("Stack trace:"));
 		console.error(error.stack);
 	}
