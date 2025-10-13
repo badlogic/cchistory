@@ -27,11 +27,13 @@ interface RequestResponsePair {
 			model: string;
 			messages: Array<{
 				role: string;
-				content: Array<{
-					type: string;
-					text?: string;
-					cache_control?: CacheControl;
-				}>;
+				content:
+					| string
+					| Array<{
+							type: string;
+							text?: string;
+							cache_control?: CacheControl;
+					  }>;
 			}>;
 			temperature?: number;
 			system?: Array<{
@@ -313,25 +315,58 @@ async function processVersion(version: string, originalCwd: string) {
 			.filter((line) => line.trim())
 			.map((line) => JSON.parse(line));
 
-		// Find the first non-Haiku request
-		const nonHaikuRequest = data.find(
-			(pair) => pair.request?.body?.model && !pair.request.body.model.toLowerCase().includes("haiku"),
+		// Find requests with tools (Claude Code requests should have tools)
+		const requestsWithTools = data.filter(
+			(pair) =>
+				pair.request?.body?.model &&
+				!pair.request.body.model.toLowerCase().includes("haiku") &&
+				pair.request.body.tools &&
+				Array.isArray(pair.request.body.tools) &&
+				pair.request.body.tools.length > 0,
 		);
 
-		if (!nonHaikuRequest) {
-			throw new Error("No non-Haiku request found in the log");
+		let nonHaikuRequest: RequestResponsePair | undefined;
+
+		if (requestsWithTools.length === 0) {
+			// Fallback to old behavior if no requests with tools found
+			nonHaikuRequest = data.find(
+				(pair) => pair.request?.body?.model && !pair.request.body.model.toLowerCase().includes("haiku"),
+			);
+
+			if (!nonHaikuRequest) {
+				throw new Error("No non-Haiku request found in the log");
+			}
+
+			console.warn(chalk.yellow("Warning: Selected request has no tools. This may not be a Claude Code request."));
+		} else {
+			// Sort by tool count (descending) to get the most complete request
+			nonHaikuRequest = requestsWithTools.sort(
+				(a, b) => (b.request.body.tools?.length || 0) - (a.request.body.tools?.length || 0),
+			)[0];
 		}
 
 		// Extract the required information
 		const request = nonHaikuRequest.request;
 
-		// Extract user message - get all content blocks from the first user message
-		const userMessage =
-			request.body.messages
-				.find((msg) => msg.role === "user")
-				?.content.filter((content) => content.type === "text")
-				.map((content) => content.text || "")
-				.join("\n") || "";
+		// Extract user message - get all content blocks from the first user message with type safety
+		const userMessageContent = request.body.messages.find((msg) => msg.role === "user")?.content;
+		const userMessage = (() => {
+			if (!userMessageContent) return "";
+
+			// Handle both string and array formats
+			if (typeof userMessageContent === "string") {
+				return userMessageContent;
+			}
+
+			if (Array.isArray(userMessageContent)) {
+				return userMessageContent
+					.filter((content) => content.type === "text")
+					.map((content) => content.text || "")
+					.join("\n");
+			}
+
+			return "";
+		})();
 
 		// Extract system prompt - join without double newlines
 		const systemPrompt = (request.body.system || [])
