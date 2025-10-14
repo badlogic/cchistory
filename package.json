@@ -37,12 +37,14 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.1.4",
 		"@types/node": "^22.10.5",
+		"@types/shell-quote": "^1.7.5",
 		"husky": "^9.1.7",
 		"tsx": "^4.20.3",
 		"typescript": "^5.9.2"
 	},
 	"types": "./dist/index.d.ts",
 	"dependencies": {
-		"chalk": "^5.5.0"
+		"chalk": "^5.5.0",
+		"shell-quote": "^1.8.3"
 	}
 }
