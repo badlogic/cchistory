@@ -12,7 +12,11 @@
 		"clean": "rm -rf dist",
 		"prepublishOnly": "npm run clean && npm run build",
 		"check": "biome check --write . && tsc --noEmit",
-		"prepare": "husky"
+		"prepare": "husky",
+		"test": "vitest",
+		"test:ui": "vitest --ui",
+		"test:coverage": "vitest --coverage",
+		"test:watch": "vitest --watch"
 	},
 	"files": [
 		"dist/**/*",
@@ -37,12 +41,17 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.1.4",
 		"@types/node": "^22.10.5",
+		"@types/shell-quote": "^1.7.5",
+		"@vitest/coverage-v8": "^3.2.4",
 		"husky": "^9.1.7",
+		"memfs": "^4.49.0",
 		"tsx": "^4.20.3",
-		"typescript": "^5.9.2"
+		"typescript": "^5.9.2",
+		"vitest": "^3.2.4"
 	},
 	"types": "./dist/index.d.ts",
 	"dependencies": {
-		"chalk": "^5.5.0"
+		"chalk": "^5.5.0",
+		"shell-quote": "^1.8.3"
 	}
 }

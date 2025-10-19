@@ -7,3 +7,4 @@ prompts-*.md
 package/
 *.tgz
 .claude-trace/
+/coverage
