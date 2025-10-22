@@ -3,14 +3,9 @@
 import * as path from "node:path";
 import chalk from "chalk";
 import { parse, quote } from "shell-quote";
-import { patchCliVersionCheck } from "./core/cli-patcher.js";
 import { extractSystemPrompt, findAndExtractUserMessage } from "./core/content-extractor.js";
-// Core imports
-import { parseJsonl } from "./core/jsonl-parser.js";
-import { formatOutput } from "./core/output-formatter.js";
 import { filterAndSortTools, hasTools, selectBestRequest } from "./core/request-filter.js";
 import { exists, readDir, readFile, writeFile } from "./services/file-service.js";
-// Service imports
 import {
 	downloadPackage,
 	getAllVersionsBetween,
@@ -19,17 +14,10 @@ import {
 } from "./services/npm-service.js";
 import { exec } from "./services/shell-service.js";
 import { cleanupTempDir, createTempWorkDir } from "./services/temp-service.js";
+import type { RequestResponsePair } from "./types/request.js";
 
-/** cchistory's own flags - used for argument validation */
 const CCHISTORY_FLAGS = ["--latest", "--binary-path", "--claude-args", "--version", "-v", "--help", "-h"];
 
-/**
- * Process a single Claude Code version and extract its prompts, tools, and system messages
- * @param versionOrLabel - NPM version string (e.g., "1.0.0") or custom label for output filename
- * @param originalCwd - Original working directory for output files
- * @param customBinaryPath - Optional path to a custom Claude Code binary
- * @param claudeArgs - Optional arguments to pass to Claude Code during execution
- */
 async function processVersion(
 	versionOrLabel: string,
 	originalCwd: string,
@@ -40,7 +28,6 @@ async function processVersion(
 		? `prompts-custom-${new Date().toISOString().replace(/[:.]/g, "-")}.md`
 		: `prompts-${versionOrLabel}.md`;
 	const outputPath = path.join(originalCwd, outputFilename);
-
 	if (exists(outputPath)) {
 		console.log(chalk.gray(`Skipping ${customBinaryPath ? "custom binary" : versionOrLabel} - already exists`));
 		return;
@@ -50,7 +37,6 @@ async function processVersion(
 		chalk.blue(`Processing ${customBinaryPath ? `custom binary (${customBinaryPath})` : versionOrLabel}...`),
 	);
 
-	// Determine CLI path and whether to use temp directory
 	let cliPath: string;
 	let tmpDir: string | undefined;
 	let packageDir: string | undefined;
@@ -62,10 +48,8 @@ async function processVersion(
 		packageDir = path.join(tmpDir, "package");
 		cliPath = path.join(packageDir, "cli.js");
 
-		// Download package from npm
 		downloadPackage(versionOrLabel, tmpDir);
 
-		// Extract tarball
 		const tarFile = path.join(tmpDir, `anthropic-ai-claude-code-${versionOrLabel}.tgz`);
 		exec(`tar -xzf ${quote([tarFile])}`, { cwd: tmpDir });
 
@@ -81,24 +65,70 @@ async function processVersion(
 			}
 			throw new Error(`CLI file not found at ${cliPath}`);
 		}
+	}
 
-		// Patch version check
-		const cliContent = readFile(cliPath);
-		const patchResult = patchCliVersionCheck(cliContent);
+	const cliContent = readFile(cliPath);
 
-		if (patchResult.patched) {
-			writeFile(cliPath, patchResult.content);
-		} else {
-			console.error(chalk.yellow(`Warning: Could not find version check to patch in version ${versionOrLabel}`));
-			console.error(chalk.gray("This version might not have the version check, continuing anyway..."));
+	const patchResult = { patched: false, content: cliContent };
+	const warningText = "It looks like your version of Claude Code";
+	const warningIndex = cliContent.indexOf(warningText);
+
+	if (warningIndex !== -1) {
+		// Scan backwards from the warning to find "function"
+		let functionIndex = -1;
+		for (let i = warningIndex; i >= 0; i--) {
+			if (cliContent.substring(i, i + 8) === "function") {
+				functionIndex = i;
+				break;
+			}
+		}
+
+		if (functionIndex !== -1) {
+			let openBraceIndex = -1;
+			for (let i = functionIndex; i < cliContent.length; i++) {
+				if (cliContent[i] === "{") {
+					openBraceIndex = i;
+					break;
+				}
+			}
+
+			if (openBraceIndex !== -1) {
+				let braceCount = 1;
+				let closeBraceIndex = -1;
+
+				for (let i = openBraceIndex + 1; i < cliContent.length; i++) {
+					if (cliContent[i] === "{") {
+						braceCount++;
+					} else if (cliContent[i] === "}") {
+						braceCount--;
+						if (braceCount === 0) {
+							closeBraceIndex = i;
+							break;
+						}
+					}
+				}
+
+				if (closeBraceIndex !== -1) {
+					const functionDeclaration = cliContent.substring(functionIndex, openBraceIndex + 1);
+					const patchedFunction = `${functionDeclaration} /* Version check disabled */ }`;
+					patchResult.content =
+						cliContent.substring(0, functionIndex) + patchedFunction + cliContent.substring(closeBraceIndex + 1);
+					patchResult.patched = true;
+				}
+			}
 		}
 	}
 
+	if (patchResult.patched) {
+		writeFile(cliPath, patchResult.content);
+	} else if (!customBinaryPath) {
+		console.error(chalk.yellow(`Warning: Could not find version check to patch in version ${versionOrLabel}`));
+		console.error(chalk.gray("This version might not have the version check, continuing anyway..."));
+	}
+
 	try {
-		// Determine working directory for claude-trace
 		let workDir: string;
 		if (customBinaryPath) {
-			// Create a temp directory for custom binary execution
 			tmpDir = createTempWorkDir("claude-history-custom");
 			workDir = tmpDir;
 		} else {
@@ -110,12 +140,10 @@ async function processVersion(
 
 		process.chdir(workDir);
 
-		// Build the claude-trace command
 		const claudePathArg = customBinaryPath ? quote([customBinaryPath]) : "./package/cli.js";
 		let additionalArgs = "";
 		if (claudeArgs) {
 			const parsed = parse(claudeArgs);
-			// Filter to only string entries for safety (reject shell operators)
 			const stringArgs = parsed.filter((entry): entry is string => typeof entry === "string");
 			additionalArgs = quote(stringArgs);
 		}
@@ -123,12 +151,22 @@ async function processVersion(
 			additionalArgs ? " " : ""
 		}-p "${new Date().toISOString()} is the date. Write a haiku about it."`;
 
-		exec(command);
+		try {
+			exec(command);
+		} catch (error) {
+			console.error(
+				chalk.red(
+					`\nFailed to run claude-trace for ${customBinaryPath ? "custom binary" : `version ${versionOrLabel}`}:`,
+				),
+			);
+			console.error(chalk.gray(`Command: ${command}`));
+			throw error;
+		}
 
-		// Find the generated JSONL file
 		if (!tmpDir) {
 			throw new Error("Internal error: tmpDir not initialized");
 		}
+
 		const claudeTraceDir = path.join(tmpDir, ".claude-trace");
 		const files = readDir(claudeTraceDir);
 		const jsonlFile = files.find((f) => f.startsWith("log-") && f.endsWith(".jsonl"));
@@ -137,49 +175,66 @@ async function processVersion(
 			throw new Error("No JSONL log file found in .claude-trace directory");
 		}
 
-		// Parse the JSONL file
 		const jsonlPath = path.join(claudeTraceDir, jsonlFile);
 		const jsonlContent = readFile(jsonlPath);
-		const data = parseJsonl(jsonlContent);
+		const data: RequestResponsePair[] = jsonlContent
+			.trim()
+			.split("\n")
+			.filter((line) => line.trim())
+			.map((line) => JSON.parse(line));
 
-		// Debug: log all request models found
-		if (process.env.DEBUG) {
-			console.log(chalk.gray("\nDebug: Requests found in log:"));
-			data.forEach((pair, idx) => {
-				const model = pair.request?.body?.model || "unknown";
-				const toolCount = pair.request?.body?.tools?.length || 0;
-				console.log(chalk.gray(`  ${idx + 1}. Model: ${model}, Tools: ${toolCount}`));
-			});
-			console.log();
-		}
-
-		// Select the best request
 		const selectedRequest = selectBestRequest(data);
 
 		if (!hasTools(selectedRequest)) {
 			console.warn(chalk.yellow("Warning: Selected request has no tools. This may not be a Claude Code request."));
 		}
 
-		// Extract the required information
 		const request = selectedRequest.request;
+
 		const userMessage = findAndExtractUserMessage(request.body.messages);
 		const systemPrompt = extractSystemPrompt(request.body);
-
-		// Filter and sort tools
 		const tools = filterAndSortTools(request.body.tools);
 
-		// Get release date and version label
 		const releaseDate = customBinaryPath ? "Custom Binary" : getVersionReleaseDate(versionOrLabel);
 		const versionLabel = customBinaryPath ? `Custom Binary (${outputFilename})` : versionOrLabel;
 
-		// Format output
-		const output = formatOutput({
-			versionLabel,
-			releaseDate,
-			userMessage,
-			systemPrompt,
-			tools,
-		});
+		const indentHeaders = (text: string): string => {
+			return text
+				.split("\n")
+				.map((line) => {
+					const match = line.match(/^(#+)(\s+)/);
+					if (match) {
+						return `#${line}`;
+					}
+					return line;
+				})
+				.join("\n");
+		};
+
+		const toolsFormatted = tools
+			.map((tool) => {
+				const schemaStr = JSON.stringify(tool.input_schema, null, 2);
+				const indentedDescription = indentHeaders(indentHeaders(tool.description));
+				return `## ${tool.name}\n\n${indentedDescription}\n${schemaStr}`;
+			})
+			.join("\n\n---\n\n");
+
+		const output = `# Claude Code Version ${versionLabel}
+
+Release Date: ${releaseDate}
+
+# User Message
+
+${indentHeaders(userMessage)}
+
+# System Prompt
+
+${indentHeaders(systemPrompt)}
+
+# Tools
+
+${toolsFormatted}
+`;
 
 		writeFile(outputPath, output);
 
@@ -192,7 +247,6 @@ async function processVersion(
 		);
 		throw error;
 	} finally {
-		// Change back to original directory and clean up
 		process.chdir(originalCwd);
 		if (tmpDir) {
 			cleanupTempDir(tmpDir);
@@ -200,10 +254,6 @@ async function processVersion(
 	}
 }
 
-/**
- * Main entry point - parses CLI arguments and orchestrates version processing
- * Handles both npm version extraction and custom binary analysis
- */
 async function main() {
 	const args = process.argv.slice(2);
 	const fetchToLatest = args.includes("--latest");
@@ -296,7 +346,6 @@ async function main() {
 				if (error instanceof Error && error.stack && process.env.DEBUG) {
 					console.error(chalk.gray("  Stack:"), error.stack);
 				}
-				// Continue with next version
 			}
 		}
 

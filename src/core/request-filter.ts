@@ -26,27 +26,48 @@ export function filterRequestsWithTools(pairs: RequestResponsePair[]): RequestRe
 }
 
 /**
- * Select the best request from candidates
- * Prefers non-Haiku requests with tools, sorted by tool count (descending)
- * Falls back to any non-Haiku request if no tools found
+ * Filter requests that have a system prompt defined
  * @param pairs - Array of request/response pairs
- * @returns The best request, or undefined if none found
+ * @returns Pairs with system prompts
+ */
+export function filterRequestsWithSystemPrompt(pairs: RequestResponsePair[]): RequestResponsePair[] {
+	return pairs.filter(
+		(pair) =>
+			pair.request?.body?.system && Array.isArray(pair.request.body.system) && pair.request.body.system.length > 0,
+	);
+}
+
+/**
+ * Select the best request from candidates
+ * Implements 3-tier prioritization:
+ * 1. Requests with both tools AND system prompt (sorted by tool count descending)
+ * 2. Requests with tools only (sorted by tool count descending)
+ * 3. Any non-Haiku request (final fallback)
+ * @param pairs - Array of request/response pairs
+ * @returns The best request
  * @throws Error if no suitable request is found
  */
 export function selectBestRequest(pairs: RequestResponsePair[]): RequestResponsePair {
-	// First try to find requests with tools
 	const nonHaikuPairs = filterNonHaikuRequests(pairs);
 	const requestsWithTools = filterRequestsWithTools(nonHaikuPairs);
 
 	if (requestsWithTools.length > 0) {
-		// Sort by tool count (descending) and return the best
-		const sorted = requestsWithTools.sort(
+		// TIER 1: Prefer requests with both tools AND system prompt
+		const requestsWithSystemPrompt = filterRequestsWithSystemPrompt(requestsWithTools);
+
+		if (requestsWithSystemPrompt.length > 0) {
+			return requestsWithSystemPrompt.sort(
+				(a, b) => (b.request.body.tools?.length || 0) - (a.request.body.tools?.length || 0),
+			)[0];
+		}
+
+		// TIER 2: Fallback to requests with tools only
+		return requestsWithTools.sort(
 			(a, b) => (b.request.body.tools?.length || 0) - (a.request.body.tools?.length || 0),
-		);
-		return sorted[0];
+		)[0];
 	}
 
-	// Fallback to any non-Haiku request
+	// TIER 3: Final fallback to any non-Haiku request
 	if (nonHaikuPairs.length > 0) {
 		return nonHaikuPairs[0];
 	}
@@ -66,10 +87,21 @@ export function filterAndSortTools(tools: Tool[] | undefined): Tool[] {
 }
 
 /**
- * Check if selected request has tools (for warning purposes)
+ * Check if request has tools
  * @param pair - Request/response pair
  * @returns True if request has tools
  */
 export function hasTools(pair: RequestResponsePair): boolean {
 	return !!pair.request.body.tools && Array.isArray(pair.request.body.tools) && pair.request.body.tools.length > 0;
+}
+
+/**
+ * Check if request has a system prompt
+ * @param pair - Request/response pair
+ * @returns True if request has system prompt
+ */
+export function hasSystemPrompt(pair: RequestResponsePair): boolean {
+	return (
+		!!pair.request?.body?.system && Array.isArray(pair.request.body.system) && pair.request.body.system.length > 0
+	);
 }

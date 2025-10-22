@@ -15,12 +15,10 @@ export function extractUserMessage(message: Message | undefined): string {
 
 	const content = message.content;
 
-	// Handle string format
 	if (typeof content === "string") {
 		return content;
 	}
 
-	// Handle array format
 	if (Array.isArray(content)) {
 		return content
 			.filter((item) => item.type === "text")
