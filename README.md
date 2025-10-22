@@ -51,6 +51,16 @@ cchistory --binary-path ./build/cli.js --claude-args "--verbose"
 cchistory 1.5.0 --claude-args "--append-system-prompt"
 ```
 
+## Claude Code Version Compatibility
+
+| Version | Changes | cchistory Support |
+|---------|---------|-------------------|
+| ≤ 2.0.5 | Array message format, complete system prompts | ✅ All versions |
+| 2.0.8 - 2.0.23 | System prompts sometimes missing | ⚠️ Use latest (prioritizes system prompts) |
+| ≥ 2.0.24 | String message format | ✅ Requires v1.2.0+ (v1.1.9 fails [#6](https://github.com/badlogic/cchistory/issues/6)) |
+
+**Note:** Versions 2.0.4, 2.0.6, 2.0.7, and 2.0.16 were not published to npm.
+
 ## How it works
 
 ### Standard Mode (NPM versions)
