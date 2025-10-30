@@ -365,7 +365,7 @@ describe("request-filter", () => {
 							messages: [],
 							// tools property exists but is undefined (edge case)
 							tools: undefined,
-						} as any,
+						},
 					},
 					response: {},
 				},

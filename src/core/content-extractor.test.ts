@@ -60,6 +60,7 @@ describe("content-extractor", () => {
 		});
 
 		it("returns empty string for invalid content type", () => {
+			// biome-ignore lint/suspicious/noExplicitAny: fine
 			const message: any = {
 				role: "user",
 				content: 123, // number instead of string/array
