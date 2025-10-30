@@ -36,11 +36,13 @@ export function filterRequestsWithTools(pairs: RequestResponsePair[]): RequestRe
 export function selectBestRequest(pairs: RequestResponsePair[]): RequestResponsePair {
 	// First try to find requests with tools
 	const nonHaikuPairs = filterNonHaikuRequests(pairs);
-	const requestsWithTools = filterRequestsWithTools(nonHaikuPairs);
+	const requestsWithToolsAndSystemPrompt = filterRequestsWithTools(nonHaikuPairs).filter(
+		(pair) => pair.request.body.system,
+	);
 
-	if (requestsWithTools.length > 0) {
+	if (requestsWithToolsAndSystemPrompt.length > 0) {
 		// Sort by tool count (descending) and return the best
-		const sorted = requestsWithTools.sort(
+		const sorted = requestsWithToolsAndSystemPrompt.sort(
 			(a, b) => (b.request.body.tools?.length || 0) - (a.request.body.tools?.length || 0),
 		);
 		return sorted[0];
